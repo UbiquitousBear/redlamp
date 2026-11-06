@@ -13,11 +13,16 @@ struct WheelZoom {
     /// The hold at Fit, and when the wheel last turned: they outlast each notch's easing.
     var hold = FitHold.wheel
     var lastNotch: TimeInterval?
+    /// Whether the fingers' last move on a trackpad or a Magic Mouse zoomed (⌥ held) rather than panned. Their lift
+    /// and the momentum after it follow it, whether ⌥ is still held or not, but the momentum only pans: a zoom stops
+    /// with the fingers, as a pinch does, rather than carry a flick on through the hold at Fit.
+    var swipeZooms = false
 }
 
 extension CanvasMetalView {
-    /// A mouse wheel zooms around the pointer; trackpad scrolling pans (pinch zooms). With ⌘ held,
-    /// scrolling goes to `onCommandScroll` first (the active brush's size).
+    /// A mouse wheel zooms around the pointer; a trackpad's or a Magic Mouse's scrolling pans (pinch zooms), and
+    /// with ⌥ held zooms as the wheel does. With ⌘ held, scrolling goes to `onCommandScroll` first (the active
+    /// brush's size).
     override public func scrollWheel(with event: NSEvent) {
         guard interactive else { return }
         handleScroll(event)
@@ -36,9 +41,16 @@ extension CanvasMetalView {
             return
         }
         if event.hasPreciseScrollingDeltas {
-            guard controller.isZoomedIn else { return }
-            controller.pan(byPoints: CGSize(width: event.scrollingDeltaX, height: event.scrollingDeltaY))
-            return
+            let isMomentum = !event.momentumPhase.isEmpty
+            if !isMomentum, !event.phase.contains(.ended) {
+                wheelZoom.swipeZooms = event.modifierFlags.contains(.option)
+            }
+            if !wheelZoom.swipeZooms {
+                guard controller.isZoomedIn else { return }
+                controller.pan(byPoints: CGSize(width: event.scrollingDeltaX, height: event.scrollingDeltaY))
+                return
+            }
+            guard !isMomentum else { return }
         }
         let notches = Self.notches(of: event)
         guard notches != 0 else { return }
@@ -80,6 +92,6 @@ extension CanvasMetalView {
 
     func stopWheelZoom() {
         wheelZoom.link?.invalidate()
-        wheelZoom = WheelZoom(hold: wheelZoom.hold, lastNotch: wheelZoom.lastNotch)
+        wheelZoom = WheelZoom(hold: wheelZoom.hold, lastNotch: wheelZoom.lastNotch, swipeZooms: wheelZoom.swipeZooms)
     }
 }

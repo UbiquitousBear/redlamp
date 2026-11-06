@@ -99,6 +99,33 @@ struct CanvasMetalViewTests {
         return event
     }
 
+    /// A two-finger swipe's event as a trackpad makes one: a continuous scroll by `points`, positive up (away from
+    /// you, as the canvas reads it, whatever the scrolling direction setting), with the fingers on, in scroll phase
+    /// `phase` (1 began, 2 changed, 4 ended), or, `momentum`, after they lift (momentum phase 2, continuing).
+    private func swipe(
+        by points: Int32, flags: CGEventFlags = [], phase: Int64 = 2, momentum: Bool = false,
+    ) throws -> NSEvent {
+        func event(_ points: Int32) throws -> NSEvent {
+            let cgEvent = try #require(CGEvent(
+                scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: points, wheel2: 0, wheel3: 0,
+            ))
+            cgEvent.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
+            cgEvent.setIntegerValueField(.scrollWheelEventPointDeltaAxis1, value: Int64(points))
+            if momentum {
+                cgEvent.setIntegerValueField(.scrollWheelEventMomentumPhase, value: 2)
+            } else {
+                cgEvent.setIntegerValueField(.scrollWheelEventScrollPhase, value: phase)
+            }
+            cgEvent.flags = flags
+            let event = try #require(NSEvent(cgEvent: cgEvent))
+            try #require(event.hasPreciseScrollingDeltas)
+            try #require(event.momentumPhase.isEmpty != momentum)
+            return event
+        }
+        let swiped = try event(points)
+        return try CanvasMetalView.notches(of: swiped) * Double(points) < 0 ? event(-points) : swiped
+    }
+
     @Test func `the wheel holds at Fit for three notches, through each notch's easing, until it rests`() throws {
         let (view, controller) = fittedView()
         defer { view.stopWheelZoom() }
@@ -140,6 +167,48 @@ struct CanvasMetalViewTests {
         try view.magnify(with: pinch(0.3, phase: 2))
         #expect(controller.isZoomedIn)
         try view.magnify(with: pinch(0, phase: 4))
+    }
+
+    @Test func `a ⌥-swipe zooms as the wheel does, holding at Fit, and a swipe without ⌥ does nothing at Fit`() throws {
+        let (view, controller) = fittedView()
+        defer { view.stopWheelZoom() }
+        let fit = controller.fitScale
+        try view.scrollWheel(with: swipe(by: 30))
+        #expect(view.wheelZoom.target == nil)
+        // Each event is three notches, but spends one of the hold, as a wheel spun hard does.
+        for _ in 0 ..< 3 {
+            try view.scrollWheel(with: swipe(by: -30, flags: .maskAlternate))
+            #expect(view.wheelZoom.target == fit)
+            view.stopWheelZoom()
+        }
+        try view.scrollWheel(with: swipe(by: -30, flags: .maskAlternate))
+        #expect(try #require(view.wheelZoom.target) < fit)
+        view.stopWheelZoom()
+        try view.scrollWheel(with: swipe(by: 30, flags: .maskAlternate))
+        #expect(try #require(view.wheelZoom.target) > fit)
+    }
+
+    @Test func `a swipe's momentum pans after a pan, and after a ⌥-swipe neither zooms nor pans`() throws {
+        let (view, controller) = fittedView()
+        defer { view.stopWheelZoom() }
+        controller.zoom = .oneToOne
+        let centre = controller.center
+        try view.scrollWheel(with: swipe(by: 30, flags: .maskAlternate))
+        #expect(view.wheelZoom.target != nil)
+        view.stopWheelZoom()
+        // Letting go of ⌥ as the fingers lift changes nothing.
+        try view.scrollWheel(with: swipe(by: 0, phase: 4))
+        for flags: CGEventFlags in [.maskAlternate, []] {
+            try view.scrollWheel(with: swipe(by: 30, flags: flags, momentum: true))
+        }
+        #expect(view.wheelZoom.target == nil)
+        #expect(controller.center == centre)
+        try view.scrollWheel(with: swipe(by: 30))
+        let panned = controller.center
+        #expect(panned != centre)
+        try view.scrollWheel(with: swipe(by: 30, flags: .maskAlternate, momentum: true))
+        #expect(view.wheelZoom.target == nil)
+        #expect(controller.center != panned)
     }
 
     @Test func `panning a zoomed-in canvas redraws it without a SwiftUI update`() async throws {
