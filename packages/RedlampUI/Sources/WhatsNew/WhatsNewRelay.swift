@@ -28,9 +28,14 @@ public struct WhatsNewRelay: WhatsNewSource {
     }
 
     /// `defaults write app.redlamp.mac WhatsNewEndpoint https://<preview>.vercel.app/api/whats-new`
-    /// points a build at a preview deployment, drafts included.
+    /// points a build at a preview deployment, drafts included. The App Store build doesn't read it
+    /// (ARC-26).
     public static var configuredEndpoint: URL {
-        UserDefaults.standard.string(forKey: "WhatsNewEndpoint").flatMap(URL.init(string:)) ?? defaultEndpoint
+        #if REDLAMP_APP_STORE
+            defaultEndpoint
+        #else
+            UserDefaults.standard.string(forKey: "WhatsNewEndpoint").flatMap(URL.init(string:)) ?? defaultEndpoint
+        #endif
     }
 
     public func feed() async -> [WhatsNewItem]? {

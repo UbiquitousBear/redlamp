@@ -63,9 +63,13 @@ public struct FeedbackRelay: FeedbackSending {
     }
 
     /// `defaults write app.redlamp.mac FeedbackEndpoint http://localhost:3000/api/feedback`
-    /// points a build at a local relay.
+    /// points a build at a local relay. The App Store build doesn't read it (ARC-26).
     public static var configuredEndpoint: URL {
-        UserDefaults.standard.string(forKey: "FeedbackEndpoint").flatMap(URL.init(string:)) ?? defaultEndpoint
+        #if REDLAMP_APP_STORE
+            defaultEndpoint
+        #else
+            UserDefaults.standard.string(forKey: "FeedbackEndpoint").flatMap(URL.init(string:)) ?? defaultEndpoint
+        #endif
     }
 
     /// Debug and profiling builds send dry runs, so working on Redlamp files no issues, unless

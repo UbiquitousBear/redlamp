@@ -149,10 +149,14 @@ struct WhatsNewFeedTests {
         #expect(await relay.feed() == nil)
     }
 
-    @Test func `a WhatsNewEndpoint default points a build at another site`() {
+    @Test func `a WhatsNewEndpoint default points a build at another site, but not the App Store build`() {
         UserDefaults.standard.set("http://localhost:3000/api/whats-new", forKey: "WhatsNewEndpoint")
         defer { UserDefaults.standard.removeObject(forKey: "WhatsNewEndpoint") }
-        #expect(WhatsNewRelay.configuredEndpoint.absoluteString == "http://localhost:3000/api/whats-new")
+        #if REDLAMP_APP_STORE
+            #expect(WhatsNewRelay.configuredEndpoint == WhatsNewRelay.defaultEndpoint)
+        #else
+            #expect(WhatsNewRelay.configuredEndpoint.absoluteString == "http://localhost:3000/api/whats-new")
+        #endif
     }
 }
 
