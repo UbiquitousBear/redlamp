@@ -188,7 +188,7 @@ final class RetouchStage: @unchecked Sendable {
     private static let maximumFills = 32
     /// The working level makes a hole at most this many texels across. REDLAMP_FILL_EXTENT
     /// overrides it, to tune.
-    static let fillExtent = Double(ProcessInfo.processInfo.environment["REDLAMP_FILL_EXTENT"] ?? "") ?? 96
+    static let fillExtent = Double(DevelopmentSwitch.value("REDLAMP_FILL_EXTENT") ?? "") ?? 96
 
     private let device: any MTLDevice
     private let queue: any MTLCommandQueue

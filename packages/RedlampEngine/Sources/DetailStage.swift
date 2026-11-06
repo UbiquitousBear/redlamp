@@ -172,11 +172,11 @@ struct LocalContrastSettings: Hashable {
     /// Process 11: Texture's detail saturates at about this many stops, so the step of an edge
     /// isn't boosted into halos while texture, well under it, is. REDLAMP_TEXTURE_LIMIT
     /// overrides it, to tune.
-    static let textureLimit = Float(ProcessInfo.processInfo.environment["REDLAMP_TEXTURE_LIMIT"] ?? "") ?? 0.25
+    static let textureLimit = Float(DevelopmentSwitch.value("REDLAMP_TEXTURE_LIMIT") ?? "") ?? 0.25
     /// Process 11: positive Texture's gain on its band, per unit of the slider, so texture shows
     /// about as strongly as at process 9 though the limit takes some off it. REDLAMP_TEXTURE_GAIN
     /// overrides it, to tune.
-    static let textureGain = Float(ProcessInfo.processInfo.environment["REDLAMP_TEXTURE_GAIN"] ?? "") ?? 1.6
+    static let textureGain = Float(DevelopmentSwitch.value("REDLAMP_TEXTURE_GAIN") ?? "") ?? 1.6
 
     init(recipe: EditRecipe) {
         texture = Float(recipe[.texture] / 100)
@@ -193,7 +193,7 @@ struct LocalContrastSettings: Hashable {
     }
 
     private static let textureWeights: [Float] = {
-        let tuned = (ProcessInfo.processInfo.environment["REDLAMP_TEXTURE_WEIGHTS"] ?? "")
+        let tuned = (DevelopmentSwitch.value("REDLAMP_TEXTURE_WEIGHTS") ?? "")
             .split(separator: ",").compactMap { Float($0) }
         return tuned.count == 5 ? tuned : [1, 0.994, 1.11, 0.70, 0.415]
     }()

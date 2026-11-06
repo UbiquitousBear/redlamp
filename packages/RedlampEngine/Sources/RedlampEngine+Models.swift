@@ -9,7 +9,7 @@ public extension RedlampEngine {
     /// Objects and Sky, for the mask bench (MSK-40).
     internal static func modelID(for kind: MaskKind) -> String? {
         switch kind {
-        case .objects: ProcessInfo.processInfo.environment["REDLAMP_SAM_MODEL"] ?? "sam2.1-tiny"
+        case .objects: DevelopmentSwitch.value("REDLAMP_SAM_MODEL") ?? "sam2.1-tiny"
         case .depthRange: "depth-anything-v2-small"
         case .landscape: sam3ID
         default: nil

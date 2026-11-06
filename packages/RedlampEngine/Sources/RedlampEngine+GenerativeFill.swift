@@ -24,7 +24,7 @@ public extension RedlampEngine {
     /// The model's folder: `REDLAMP_GENERATIVE_MODEL` (development, before the download is
     /// published), or the download once it's installed.
     internal func generativeModelDirectory() async -> URL? {
-        if let path = ProcessInfo.processInfo.environment["REDLAMP_GENERATIVE_MODEL"], !path.isEmpty {
+        if let path = DevelopmentSwitch.value("REDLAMP_GENERATIVE_MODEL"), !path.isEmpty {
             return URL(fileURLWithPath: path)
         }
         guard let manifest = ModelCatalog.manifest(Self.generativeModelID) else { return nil }

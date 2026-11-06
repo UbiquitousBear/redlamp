@@ -13,13 +13,13 @@ import simd
 enum ClarityBase {
     /// The filter's window radius in full-resolution pixels: Clarity's coarse end (a level 6
     /// texel spans 64). REDLAMP_CLARITY_RADIUS overrides it, to tune.
-    static let radiusPixels = Float(ProcessInfo.processInfo.environment["REDLAMP_CLARITY_RADIUS"] ?? "") ?? 32
+    static let radiusPixels = Float(DevelopmentSwitch.value("REDLAMP_CLARITY_RADIUS") ?? "") ?? 32
     /// Detail below this variance (stops squared) is Clarity's to boost; edges above it are kept
     /// in the base. REDLAMP_CLARITY_EPSILON overrides it, to tune.
-    static let epsilon = Float(ProcessInfo.processInfo.environment["REDLAMP_CLARITY_EPSILON"] ?? "") ?? 0.25
+    static let epsilon = Float(DevelopmentSwitch.value("REDLAMP_CLARITY_EPSILON") ?? "") ?? 0.25
     /// Clarity's gain on the band (per-level Clarity's is 0.7): the filter keeps part of strong
     /// texture in the base, so the band is smaller. REDLAMP_CLARITY_GAIN overrides it, to tune.
-    static let gain = Float(ProcessInfo.processInfo.environment["REDLAMP_CLARITY_GAIN"] ?? "") ?? 1.25
+    static let gain = Float(DevelopmentSwitch.value("REDLAMP_CLARITY_GAIN") ?? "") ?? 1.25
     /// Added to luminance before the log, as the detail stage does (`DetailStage.luma`).
     static let floor: Float = 1.0 / 1024
 

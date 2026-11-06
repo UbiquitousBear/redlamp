@@ -17,7 +17,7 @@ extension RedlampEngine {
     /// mask bench to measure whether masks are found better on it (MSK-39).
     static let analysisRecipe: EditRecipe = {
         var recipe = EditRecipe().unframed
-        if ProcessInfo.processInfo.environment["REDLAMP_ANALYSIS_RENDER"] == "lifted" {
+        if DevelopmentSwitch.value("REDLAMP_ANALYSIS_RENDER") == "lifted" {
             recipe[.shadows] = 60
             recipe[.highlights] = -60
         }
@@ -31,7 +31,7 @@ extension RedlampEngine {
     /// `classical` force one. Whichever it is, `SkyMatte` then solves its edges at the size
     /// masks are stored at.
     static var skyMethod: String {
-        ProcessInfo.processInfo.environment["REDLAMP_SKY_METHOD"] ?? "auto"
+        DevelopmentSwitch.value("REDLAMP_SKY_METHOD") ?? "auto"
     }
 
     /// Sky from the models or the classical estimate, its edges solved per pixel on `session`,
@@ -76,7 +76,7 @@ extension RedlampEngine {
         guard coarse.coveredFraction > 0.001 else { return nil }
         var sky = coarse
         // REDLAMP_SKY_MATTE=off keeps the models' edges, to compare.
-        if ProcessInfo.processInfo.environment["REDLAMP_SKY_MATTE"] != "off",
+        if DevelopmentSwitch.value("REDLAMP_SKY_MATTE") != "off",
            let full = try? await matteImage(for: session) {
             sky = await Task.detached(priority: .userInitiated) { SkyMatte.refine(coarse, image: full) }.value
         }
@@ -306,7 +306,7 @@ extension RedlampEngine {
         if request.kind == .sky, !session.embeddedMattes.contains(.sky) {
             // REDLAMP_SKY_GATE=<confidence>: no sky where Vision's classifier is less sure than that
             // the photo has any (a portrait's plain backdrop), for the mask bench (MSK-40).
-            if let gate = Double(ProcessInfo.processInfo.environment["REDLAMP_SKY_GATE"] ?? ""),
+            if let gate = Double(DevelopmentSwitch.value("REDLAMP_SKY_GATE") ?? ""),
                SkyEstimator.skyConfidence(analysis.image) < gate {
                 throw MaskComputationError.nothingFound(.sky)
             }
@@ -347,7 +347,7 @@ extension RedlampEngine {
             let image = analysis.image
             // Edges solved per pixel at the size masks are stored at (the hover preview keeps the
             // model's, to stay instant). REDLAMP_EDGE_MATTE=off keeps the guided filter's.
-            let full = ProcessInfo.processInfo.environment["REDLAMP_EDGE_MATTE"] == "off"
+            let full = DevelopmentSwitch.value("REDLAMP_EDGE_MATTE") == "off"
                 ? nil : try? await matteImage(for: session)
             let mask = await Task.detached(priority: .userInitiated) {
                 guard let full else { return GuidedFilter.refine(raw, guide: image, radius: 4, epsilon: 1e-3) }
@@ -375,7 +375,7 @@ extension RedlampEngine {
                 )
             }
         }
-        let edgeMatte = ProcessInfo.processInfo.environment["REDLAMP_EDGE_MATTE"]
+        let edgeMatte = DevelopmentSwitch.value("REDLAMP_EDGE_MATTE")
         var subjectKey: SubjectMatteKey?
         if request.kind == .subject || request.kind == .background {
             let key = await SubjectMatteKey(
@@ -412,7 +412,7 @@ extension RedlampEngine {
             first.instance = nil
             provided = [first]
         }
-        if ProcessInfo.processInfo.environment["REDLAMP_SUBJECT_SAM"] == "1",
+        if DevelopmentSwitch.value("REDLAMP_SUBJECT_SAM") == "1",
            request.kind == .subject || request.kind == .background, provided.count == 1,
            await isReady(Self.modelID(for: .objects)) {
             provided[0] = try await promptedBySegmentAnything(provided[0], analysis: analysis)
@@ -578,7 +578,7 @@ extension RedlampEngine {
         let people = await Task.detached(priority: .userInitiated) {
             (try? VisionMaskProvider().masks(for: MaskRequest(kind: .people), in: image)) ?? []
         }.value
-        let full = ProcessInfo.processInfo.environment["REDLAMP_EDGE_MATTE"] == "off" || people.isEmpty
+        let full = DevelopmentSwitch.value("REDLAMP_EDGE_MATTE") == "off" || people.isEmpty
             ? nil : try? await matteImage(for: session)
         var mattes: [GrayMask] = []
         if let full {
@@ -629,7 +629,7 @@ extension RedlampEngine {
            cached.mattes.count == people.count {
             return cached.mattes
         }
-        let matte = ProcessInfo.processInfo.environment["REDLAMP_EDGE_MATTE"] == "closed-form" ? nil : await vitMatte()
+        let matte = DevelopmentSwitch.value("REDLAMP_EDGE_MATTE") == "closed-form" ? nil : await vitMatte()
         let mattes = await Task.detached(priority: .userInitiated) {
             people.map { person in
                 let closed = ClosedFormMatte.refine(person.mask, image: image)
@@ -704,7 +704,7 @@ extension RedlampEngine {
             throw MaskComputationError.notFound(request.landscape)
         }
         let size = PixelSize(width: analysis.image.width, height: analysis.image.height)
-        let full = ProcessInfo.processInfo.environment["REDLAMP_EDGE_MATTE"] == "off"
+        let full = DevelopmentSwitch.value("REDLAMP_EDGE_MATTE") == "off"
             ? nil : try? await matteImage(for: session)
         let mask = await Task.detached(priority: .userInitiated) {
             let resized = coarse.resized(to: size)

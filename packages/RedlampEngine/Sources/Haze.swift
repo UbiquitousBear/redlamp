@@ -36,10 +36,10 @@ enum Haze {
 
     /// The refined map's guided-filter window, as a multiple of the patch radius.
     /// REDLAMP_HAZE_RADIUS overrides it, to tune.
-    static let refinedRadiusFactor = Float(ProcessInfo.processInfo.environment["REDLAMP_HAZE_RADIUS"] ?? "") ?? 8
+    static let refinedRadiusFactor = Float(DevelopmentSwitch.value("REDLAMP_HAZE_RADIUS") ?? "") ?? 8
     /// The refined map's edge threshold, as a variance of the guide (brightness over the
     /// airlight). REDLAMP_HAZE_EPSILON overrides it, to tune.
-    static let refinedEpsilon = Float(ProcessInfo.processInfo.environment["REDLAMP_HAZE_EPSILON"] ?? "") ?? 1e-3
+    static let refinedEpsilon = Float(DevelopmentSwitch.value("REDLAMP_HAZE_EPSILON") ?? "") ?? 1e-3
 
     /// The veil negative Dehaze adds from process 18: the airlight's brightness in a neutral colour
     /// tinted a little cool, as scattered light is. Lightroom's veil is nearly the same colour over
