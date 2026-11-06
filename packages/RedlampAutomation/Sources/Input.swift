@@ -263,6 +263,25 @@
             }
         }
 
+        /// Swipes two fingers up or down the trackpad over `target`'s middle with `modifiers` held: one gesture whose
+        /// events scroll by each of `points` in turn (positive swipes up, away from you, which with ⌥ zooms the canvas
+        /// in, whatever the scrolling direction setting), `interval` apart, as a trackpad or a Magic Mouse sends them.
+        func swipe(
+            _ target: Target, by points: [Int32], modifiers: CGEventFlags = [], interval: Double = 1.0 / 60,
+        ) throws {
+            let location = try Self.location(CGPoint(x: 0.5, y: 0.5), in: frame(of: target))
+            let steps = points.indices.map { (points[$0], $0 == 0 ? Trackpad.Phase.began : .changed) }
+            for (delta, phase) in steps + [(0, .ended)] {
+                try main { _ in
+                    guard let window = Views.editorWindow, let view = window.contentView?.superview?.hitTest(location)
+                    else { throw ScenarioFailure("Nothing takes a swipe over \(target)") }
+                    let screen = window.convertPoint(toScreen: location)
+                    try view.scrollWheel(with: Trackpad.swipe(delta, phase: phase, modifiers: modifiers, at: screen))
+                }
+                pause(interval)
+            }
+        }
+
         /// Moves the pointer over `target` to `point` (0...1 across and down its frame), as the
         /// tracking area under it reports a move to the view carrying the target's identifier.
         func hover(_ target: Target, at point: CGPoint = CGPoint(x: 0.5, y: 0.5)) throws {
@@ -430,15 +449,17 @@
         }
     }
 
-    /// A trackpad's pinch, made as the trackpad makes one. AppKit has no way to make a magnify event, but makes one
-    /// of a Quartz event of the gesture type (29) whose field 110 names its kind (8, a magnify gesture), with its
-    /// change in scale in field 113 and its phase in field 132.
+    /// A trackpad's gestures, made as the trackpad makes them.
     @MainActor
     enum Trackpad {
+        /// A gesture's phase, as a pinch's event and a scroll's (`CGScrollPhase`) both count it.
         enum Phase: Int64 {
             case began = 1, changed = 2, ended = 4
         }
 
+        /// A pinch's event. AppKit has no way to make a magnify event, but makes one of a Quartz event of the gesture
+        /// type (29) whose field 110 names its kind (8, a magnify gesture), with its change in scale in field 113 and
+        /// its phase in field 132.
         static func pinch(_ magnification: Double, phase: Phase, at location: NSPoint) throws -> NSEvent {
             guard let cgEvent = CGEvent(source: nil), let gesture = CGEventType(rawValue: 29),
                   let kind = CGEventField(rawValue: 110), let scale = CGEventField(rawValue: 113),
@@ -453,6 +474,29 @@
                 throw ScenarioFailure("A magnify gesture's Quartz event didn't make a magnify event")
             }
             return event
+        }
+
+        /// A two-finger swipe's event, as a trackpad or a Magic Mouse makes one: a continuous scroll by `points`
+        /// (positive up, away from you, as the canvas reads it: `CanvasMetalView.notches(of:)`) in `phase` of the
+        /// gesture, with `modifiers` held, at `location` on the screen (AppKit's).
+        static func swipe(
+            _ points: Int32, phase: Phase, modifiers: CGEventFlags, at location: NSPoint,
+        ) throws -> NSEvent {
+            for wheel in [points, -points] {
+                guard let cgEvent = CGEvent(
+                    scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: wheel, wheel2: 0, wheel3: 0,
+                ) else { break }
+                cgEvent.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
+                cgEvent.setIntegerValueField(.scrollWheelEventPointDeltaAxis1, value: Int64(wheel))
+                cgEvent.setIntegerValueField(.scrollWheelEventScrollPhase, value: phase.rawValue)
+                cgEvent.flags = modifiers
+                cgEvent.location = location.flippedOnScreen
+                if let event = NSEvent(cgEvent: cgEvent), event.hasPreciseScrollingDeltas,
+                   points == 0 || CanvasMetalView.notches(of: event) * Double(points) > 0 {
+                    return event
+                }
+            }
+            throw ScenarioFailure("Couldn't make a swipe on the trackpad")
         }
     }
 

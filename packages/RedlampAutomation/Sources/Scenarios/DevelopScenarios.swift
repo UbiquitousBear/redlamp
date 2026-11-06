@@ -812,10 +812,11 @@
             app.covered([.feature("viewing.zoom"), .feature("viewing.navigator"), .section(.navigator)], via: .mouse)
         }
 
-        /// UX-57: zooming out past Fit, to see the photo as from a distance or on a small screen.
+        /// UX-57: zooming out past Fit, to see the photo as from a distance or on a small screen. UX-38: ⌥-scrolling
+        /// on a trackpad or a Magic Mouse zooms as the wheel does.
         static let zoomPastFit = Scenario(
             "viewing.zoom-past-fit",
-            "The wheel and a pinch hold at Fit for a few steps, then zoom out to a quarter of it, and back in past it",
+            "The wheel, a pinch and a ⌥-swipe hold at Fit for a few steps, then zoom out below it, and back in past it",
             claims: [.feature("viewing.zoom")],
         ) { app in
             try app.openWorking()
@@ -863,6 +864,25 @@
             try app.wait("⌘= to come back to half of Fit", until: settles(at: 0.5))
             try app.press(.toggleZoom)
             try app.wait("1:1") { $0.canvas.zoom == .oneToOne }
+            try app.press(.toggleZoom)
+            try app.wait("Fit") { $0.canvas.zoom == .fit }
+            // A swipe on the trackpad doesn't zoom without ⌥; with it, ten points make a notch of the wheel, and
+            // swiping down holds at Fit for three of them.
+            try app.swipe(.canvas, by: Array(repeating: 10, count: 4))
+            app.pause(0.2)
+            let unzoomed = try app.main { $0.canvas.zoom == .fit }
+            try app.expect(unzoomed, "A swipe without ⌥ zoomed in from Fit")
+            try app.swipe(.canvas, by: Array(repeating: -10, count: 4), modifiers: .maskAlternate)
+            try app.wait("four notches of a ⌥-swipe down to end a notch below Fit", until: settles(at: pow(2, -0.25)))
+            try app.swipe(.canvas, by: Array(repeating: 10, count: 5), modifiers: .maskAlternate)
+            try app.wait("five notches of a ⌥-swipe up to end at twice Fit", until: settles(at: 2))
+            // Zoomed in, a swipe without ⌥ pans the photo, and leaves its zoom as it is.
+            app.pause(0.2)
+            let offset = try app.main { "\($0.canvas.center)" }
+            try app.swipe(.canvas, by: Array(repeating: 10, count: 3))
+            try app.wait("a swipe without ⌥ to pan the photo") { offset != "\($0.canvas.center)" }
+            let kept = try app.main(settles(at: 2))
+            try app.expect(kept, "A swipe without ⌥ zoomed the photo")
             try app.press(.toggleZoom)
             try app.wait("Fit") { $0.canvas.zoom == .fit }
             app.covered(.feature("viewing.zoom"), via: .mouse)
