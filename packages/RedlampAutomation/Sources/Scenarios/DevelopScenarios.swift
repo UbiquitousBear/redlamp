@@ -756,7 +756,8 @@
 
         static let histogram = Scenario(
             "develop.histogram",
-            "Dragging the histogram moves its region's slider; under it, the photo's values under the pointer",
+            "Dragging the histogram moves its region's slider, and a clipping triangle previews the warning while the "
+                + "pointer is on it; under it, the photo's values under the pointer",
             claims: [.feature("develop.histogram")],
             needsFocus: true,
         ) { app in
@@ -769,6 +770,30 @@
             try app.choose(.resetAll)
             try app.waitForCanvas()
             try app.focus()
+            // Each clipping triangle previews the warning on the photo while the pointer is on it, without Show
+            // Clipping, which a click on one still toggles. Their middles are 13 points in from the graph's sides and
+            // 10 down (`HistogramGraphView.indicatorFrame`).
+            let graph = try app.frame(of: .identifier("histogram"))
+            let shadows = CGPoint(x: 13 / graph.width, y: 10 / graph.height)
+            let highlights = CGPoint(x: 1 - shadows.x, y: shadows.y)
+            let shown = try app.main { $0.showClipping }
+            for triangle in [shadows, highlights] {
+                try app.expectRenders("the pointer on a clipping triangle") {
+                    try app.hover(.identifier("histogram"), at: triangle)
+                }
+                try app.expect(
+                    try app.main { $0.temporaryClipping && $0.showClipping == shown },
+                    "The triangle should preview the warning, leaving Show Clipping as it was",
+                )
+                try app.hover(.identifier("histogram"), at: CGPoint(x: 0.5, y: 0.5))
+                try app.wait("the preview to end as the pointer leaves the triangle") { !$0.temporaryClipping }
+            }
+            try app.hover(.identifier("histogram"), at: shadows)
+            try app.click(.identifier("histogram"), at: shadows)
+            try app.wait("a click on the triangle to toggle Show Clipping") { $0.showClipping != shown }
+            try app.hover(.identifier("histogram"), at: CGPoint(x: 0.5, y: 0.5))
+            try app.wait("Show Clipping kept as the preview ends") { !$0.temporaryClipping && $0.showClipping != shown }
+            try app.main { $0.showClipping = shown }
             try app.hover(.canvas, at: CGPoint(x: 0.5, y: 0.5))
             try app.wait("the readout of the photo under the pointer") { $0.pixelReadout != nil }
             let lab = try app.main { $0.showsLabReadout }
