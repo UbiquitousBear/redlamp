@@ -185,6 +185,103 @@ struct HistogramGraphViewTests {
         try await compare(view, with: "histogram-empty")
     }
 
+    private func mouse(_ type: NSEvent.EventType, at point: CGPoint, in view: NSView) throws -> NSEvent {
+        let pressed = type == .leftMouseDown || type == .leftMouseDragged
+        return try #require(NSEvent.mouseEvent(
+            with: type, location: view.convert(point, to: nil), modifierFlags: [], timestamp: 0,
+            windowNumber: view.window?.windowNumber ?? 0, context: nil, eventNumber: 0,
+            clickCount: type == .mouseMoved ? 0 : 1, pressure: pressed ? 1 : 0,
+        ))
+    }
+
+    private func exited(_ view: NSView) throws -> NSEvent {
+        try #require(NSEvent.enterExitEvent(
+            with: .mouseExited, location: .zero, modifierFlags: [], timestamp: 0,
+            windowNumber: view.window?.windowNumber ?? 0, context: nil, eventNumber: 0, trackingNumber: 0,
+            userData: nil,
+        ))
+    }
+
+    @Test func `a clipping triangle previews the warning on the photo while the pointer is on it`() async throws {
+        let (model, engine, cleanup) = try await openEditor()
+        defer { cleanup() }
+        let view = HistogramGraphView(model: model)
+        let window = window(view)
+        defer { window.close() }
+        try await show(histogram(shift: 0), model: model, engine: engine, step: 1)
+        let shadows = CGPoint(x: 13, y: 10), highlights = CGPoint(x: view.bounds.width - 13, y: 10)
+
+        try view.mouseMoved(with: mouse(.mouseMoved, at: shadows, in: view))
+        #expect(model.temporaryClipping && !model.showClipping, "a preview, with Show Clipping left off")
+        #expect(engine.base.lastRender?.showClipping == true, "the photo shows the warning")
+        let (_, previewing) = try await snapshot(view)
+        model.showClipping = true
+        let (_, shown) = try await snapshot(view)
+        let largest = zip(previewing, shown).map { abs(Int($0) - Int($1)) }.max() ?? 0
+        #expect(largest <= 2, "both triangles lit, as Show Clipping lights them; a channel differs by \(largest)")
+        model.showClipping = false
+
+        try view.mouseMoved(with: mouse(.mouseMoved, at: CGPoint(x: 130, y: 50), in: view))
+        #expect(!model.temporaryClipping, "the graph previews nothing")
+        #expect(engine.base.lastRender?.showClipping == false, "the photo shows the warning no more")
+        try view.mouseMoved(with: mouse(.mouseMoved, at: highlights, in: view))
+        #expect(model.temporaryClipping, "the highlights triangle previews it too")
+        try view.mouseExited(with: exited(view))
+        #expect(!model.temporaryClipping, "leaving the view ends the preview")
+
+        model.module = .library
+        try view.mouseMoved(with: mouse(.mouseMoved, at: shadows, in: view))
+        #expect(!model.temporaryClipping, "nothing in Library, whose column lies over this one")
+    }
+
+    @Test func `a click on a clipping triangle still toggles Show Clipping, and the preview always ends`(
+    ) async throws {
+        let (model, engine, cleanup) = try await openEditor()
+        defer { cleanup() }
+        let view = HistogramGraphView(model: model)
+        let window = window(view)
+        defer { window.close() }
+        try await show(histogram(shift: 0), model: model, engine: engine, step: 1)
+        let triangle = CGPoint(x: 13, y: 10), graph = CGPoint(x: 130, y: 50)
+
+        try view.mouseMoved(with: mouse(.mouseMoved, at: triangle, in: view))
+        try view.mouseDown(with: mouse(.leftMouseDown, at: triangle, in: view))
+        try view.mouseUp(with: mouse(.leftMouseUp, at: triangle, in: view))
+        #expect(model.showClipping && model.temporaryClipping, "a click keeps the warning on")
+        try view.mouseMoved(with: mouse(.mouseMoved, at: graph, in: view))
+        #expect(model.showClipping && !model.temporaryClipping, "Show Clipping stays on as the preview ends")
+        try view.mouseMoved(with: mouse(.mouseMoved, at: triangle, in: view))
+        try view.mouseDown(with: mouse(.leftMouseDown, at: triangle, in: view))
+        try view.mouseUp(with: mouse(.leftMouseUp, at: triangle, in: view))
+        #expect(!model.showClipping && model.temporaryClipping, "off again, the preview on while the pointer stays")
+
+        // A press's moves come as drags, which a tracking area doesn't report.
+        try view.mouseDown(with: mouse(.leftMouseDown, at: triangle, in: view))
+        try view.mouseDragged(with: mouse(.leftMouseDragged, at: graph, in: view))
+        try view.mouseUp(with: mouse(.leftMouseUp, at: graph, in: view))
+        #expect(model.showClipping && !model.temporaryClipping, "released off the triangle")
+        model.showClipping = false
+
+        try view.mouseMoved(with: mouse(.mouseMoved, at: triangle, in: view))
+        NotificationCenter.default.post(name: NSWindow.didResignKeyNotification, object: window)
+        #expect(!model.temporaryClipping, "in a window no longer key, whose tracking area hears nothing")
+        try view.mouseMoved(with: mouse(.mouseMoved, at: triangle, in: view))
+        view.isHidden = true
+        #expect(!model.temporaryClipping, "hidden, as in a collapsed panel")
+        view.isHidden = false
+
+        // An Option-drag on a tone slider previews through the same flag.
+        model.setTemporaryClipping(true)
+        try view.mouseMoved(with: mouse(.mouseMoved, at: graph, in: view))
+        try view.mouseExited(with: exited(view))
+        #expect(model.temporaryClipping, "the histogram ends only the preview it began")
+        model.setTemporaryClipping(false)
+
+        try view.mouseMoved(with: mouse(.mouseMoved, at: triangle, in: view))
+        window.contentView = NSView()
+        #expect(!model.temporaryClipping, "out of the window")
+    }
+
     /// The view's pixels in sRGB, once they have stayed the same for a quarter of a second.
     private func snapshot(_ view: NSView) async throws -> (CGImage, [UInt8]) {
         var previous: [UInt8]?
