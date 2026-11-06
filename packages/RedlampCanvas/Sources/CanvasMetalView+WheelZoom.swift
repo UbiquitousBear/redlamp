@@ -14,8 +14,9 @@ struct WheelZoom {
     var hold = FitHold.wheel
     var lastNotch: TimeInterval?
     /// Whether the fingers' last move on a trackpad or a Magic Mouse zoomed (⌥ held) rather than panned. Their lift
-    /// and the momentum after it follow it, whether ⌥ is still held or not, but the momentum only pans: a zoom stops
-    /// with the fingers, as a pinch does, rather than carry a flick on through the hold at Fit.
+    /// and the momentum after it keep it, whether ⌥ is still held or not: momentum after a pan goes on panning, and
+    /// momentum after a zoom does nothing, since a zoom stops with the fingers, as a pinch does, rather than carry a
+    /// flick on through the hold at Fit.
     var swipeZooms = false
 }
 

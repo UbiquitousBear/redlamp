@@ -45,6 +45,22 @@ struct DriverTests {
         }
     }
 
+    @Test func `a swipe is a precise scroll with its phase and modifiers, as the canvas reads it`() throws {
+        let phases: [(Trackpad.Phase, NSEvent.Phase)] = [(.began, .began), (.changed, .changed), (.ended, .ended)]
+        for (phase, expected) in phases {
+            let event = try Trackpad.swipe(10, phase: phase, modifiers: .maskAlternate, at: .zero)
+            #expect(event.type == .scrollWheel)
+            #expect(event.hasPreciseScrollingDeltas)
+            #expect(event.momentumPhase.isEmpty)
+            #expect(event.phase == expected)
+            #expect(CanvasMetalView.notches(of: event) == 1)
+            #expect(event.modifierFlags.contains(.option))
+        }
+        let lifted = try Trackpad.swipe(0, phase: .ended, modifiers: [], at: .zero)
+        #expect(CanvasMetalView.notches(of: lifted) == 0)
+        #expect(!lifted.modifierFlags.contains(.option))
+    }
+
     @Test func `a notch of the wheel rolls away from you or towards you, as the canvas reads it`() throws {
         #expect(try CanvasMetalView.notches(of: Wheel.notch(away: true, at: .zero)) == 1)
         #expect(try CanvasMetalView.notches(of: Wheel.notch(away: false, at: .zero)) == -1)
