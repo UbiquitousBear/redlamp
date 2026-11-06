@@ -8,7 +8,9 @@ struct ModelsSettings: View {
     @State private var models: [ModelInfo] = []
     @State private var progress: [String: Double] = [:]
     @State private var failure: String?
-    @AppStorage("app.redlamp.evaluationModels") private var evaluationModels = false
+    #if !REDLAMP_APP_STORE
+        @AppStorage("app.redlamp.evaluationModels") private var evaluationModels = false
+    #endif
 
     var body: some View {
         Form {
@@ -28,16 +30,19 @@ struct ModelsSettings: View {
                 """)
                 .formFooter()
             }
-            Section {
-                Toggle("Offer models awaiting licence review", isOn: $evaluationModels)
-                    .onChange(of: evaluationModels) { Task { await refresh() } }
-            } footer: {
-                Text("""
-                For evaluation: models whose training data's terms are still being reviewed. Masks made \
-                with them are kept in your edits either way.
-                """)
-                .formFooter()
-            }
+            // The App Store build ignores the setting (`ModelCatalog.allowsEvaluationModels`, ARC-26).
+            #if !REDLAMP_APP_STORE
+                Section {
+                    Toggle("Offer models awaiting licence review", isOn: $evaluationModels)
+                        .onChange(of: evaluationModels) { Task { await refresh() } }
+                } footer: {
+                    Text("""
+                    For evaluation: models whose training data's terms are still being reviewed. Masks made \
+                    with them are kept in your edits either way.
+                    """)
+                    .formFooter()
+                }
+            #endif
             if let failure {
                 Section {
                     Label(failure, systemImage: "exclamationmark.triangle")

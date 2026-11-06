@@ -105,10 +105,14 @@ public enum ModelCatalog {
     public static let evaluationModelsKey = "app.redlamp.evaluationModels"
 
     /// Models awaiting licence review are offered only when asked for (Settings › Models, or
-    /// `REDLAMP_EVALUATION_MODELS=1`).
+    /// `REDLAMP_EVALUATION_MODELS=1`), and never in the App Store build, which reads neither (ARC-26).
     public static var allowsEvaluationModels: Bool {
-        ProcessInfo.processInfo.environment["REDLAMP_EVALUATION_MODELS"] == "1"
-            || UserDefaults.standard.bool(forKey: evaluationModelsKey)
+        #if REDLAMP_APP_STORE
+            false
+        #else
+            ProcessInfo.processInfo.environment["REDLAMP_EVALUATION_MODELS"] == "1"
+                || UserDefaults.standard.bool(forKey: evaluationModelsKey)
+        #endif
     }
 
     public static var offered: [ModelManifest] {

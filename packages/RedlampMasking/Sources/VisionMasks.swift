@@ -71,7 +71,7 @@ public struct VisionMaskProvider: Sendable {
         guard let observation = request.results?.first, !observation.allInstances.isEmpty else {
             throw MaskComputationError.nothingFound(.subject)
         }
-        let salient = ProcessInfo.processInfo.environment["REDLAMP_SUBJECT_INSTANCES"] == "salient"
+        let salient = Self.subjectFromSalientInstances
         let instances = salient ? try Self.salient(observation, handler: handler) : observation.allInstances
         let buffer = try observation.generateScaledMaskForImage(forInstances: instances, from: handler)
         let mask = try Self.gray(buffer).fitted(longEdge: Self.storedLongEdge)
@@ -79,6 +79,16 @@ public struct VisionMaskProvider: Sendable {
             kind: .subject, provider: "apple.vision.foreground" + (salient ? "+salient" : ""),
             revision: request.revision, mask: GuidedFilter.refine(mask, guide: image),
         )
+    }
+
+    /// Whether Subject is made from `salient`'s instances: REDLAMP_SUBJECT_INSTANCES=salient, which the
+    /// App Store build doesn't read (ARC-26).
+    private static var subjectFromSalientInstances: Bool {
+        #if REDLAMP_APP_STORE
+            false
+        #else
+            ProcessInfo.processInfo.environment["REDLAMP_SUBJECT_INSTANCES"] == "salient"
+        #endif
     }
 
     /// Of the instances Vision separates, the ones that hold the eye: each instance's sum of Vision's
