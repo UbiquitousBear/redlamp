@@ -859,7 +859,8 @@ public final class EditorModel {
     /// Called when the Before / After layout changes, so the app can remember it.
     @ObservationIgnored public var onCompareLayoutChange: ((CompareLayout) -> Void)?
 
-    @ObservationIgnored private var temporaryClipping = false
+    /// The photo shows the clipping warning for the moment (`setTemporaryClipping`), whatever Show Clipping is.
+    @ObservationIgnored public private(set) var temporaryClipping = false
     @ObservationIgnored var clipboard: CopiedSettings?
     @ObservationIgnored var pendingDrawingName: String?
     /// The kind of shape a drag is drawing, from `beginDrawing` until `finishDrawing`. Observed: the canvas keeps the
@@ -2044,7 +2045,8 @@ public final class EditorModel {
         commit(beforeRecipe, .reset, "Reset")
     }
 
-    /// Alt-drag on tone sliders previews clipping, like Lightroom.
+    /// Previews clipping, as Lightroom does while a tone slider is Option-dragged or the pointer is on one of the
+    /// histogram's clipping triangles. The two share the flag, and each needs the pointer, so they can't overlap.
     public func setTemporaryClipping(_ on: Bool) {
         guard temporaryClipping != on else { return }
         temporaryClipping = on

@@ -42,6 +42,16 @@ final class HistogramGraphView: LayerDrawnView, NSViewToolTipOwner {
         }
     }
 
+    /// The pointer is on a clipping triangle: the photo previews the warning, and the triangles are lit.
+    private var previewsClipping = false {
+        didSet {
+            if previewsClipping != oldValue {
+                model.setTemporaryClipping(previewsClipping)
+                update()
+            }
+        }
+    }
+
     private var dragStart: (x: CGFloat, value: Double)?
     private var mouseDownX: CGFloat?
 
@@ -65,6 +75,7 @@ final class HistogramGraphView: LayerDrawnView, NSViewToolTipOwner {
         var region: Region?
         var regionValue: Double
         var showClipping: Bool
+        var previewsClipping: Bool
         var shadowsClipped: Bool
         var highlightsClipped: Bool
         var readout: [String]?
@@ -126,7 +137,24 @@ final class HistogramGraphView: LayerDrawnView, NSViewToolTipOwner {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        previewsClipping = false
+        NotificationCenter.default.removeObserver(self, name: NSWindow.didResignKeyNotification, object: nil)
+        if let window {
+            // The tracking area is active only in the key window: once it isn't, the pointer leaves unheard.
+            NotificationCenter.default.addObserver(
+                self, selector: #selector(endClippingPreview), name: NSWindow.didResignKeyNotification, object: window,
+            )
+        }
         track()
+    }
+
+    override func viewDidHide() {
+        super.viewDidHide()
+        previewsClipping = false
+    }
+
+    @objc private func endClippingPreview() {
+        previewsClipping = false
     }
 
     private var shownRegion: Region? {
@@ -160,6 +188,7 @@ final class HistogramGraphView: LayerDrawnView, NSViewToolTipOwner {
         }
         let overlay = Overlay(
             region: shownRegion, regionValue: regionValue, showClipping: showClipping,
+            previewsClipping: previewsClipping,
             shadowsClipped: histogram.shadowsClipped, highlightsClipped: histogram.highlightsClipped,
             readout: readout,
         )
@@ -186,6 +215,10 @@ final class HistogramGraphView: LayerDrawnView, NSViewToolTipOwner {
             Self.indicatorSize.height,
             TextLine.lineHeight(Self.captionFont),
         )
+    }
+
+    private func isOnIndicator(_ location: CGPoint) -> Bool {
+        indicatorFrame(trailing: false).contains(location) || indicatorFrame(trailing: true).contains(location)
     }
 
     private func indicatorFrame(trailing: Bool) -> CGRect {
@@ -304,7 +337,8 @@ final class HistogramGraphView: LayerDrawnView, NSViewToolTipOwner {
     }
 
     private func drawIndicator(clipped: Bool, color: NSColor, trailing: Bool) {
-        let tint = clipped || showClipping ? color.usingColorSpace(.sRGB).map(RGBA.init) : Palette.tertiaryLabel
+        let tint = clipped || showClipping || previewsClipping
+            ? color.usingColorSpace(.sRGB).map(RGBA.init) : Palette.tertiaryLabel
         guard let tint else { return }
         let frame = indicatorFrame(trailing: trailing)
         Symbol.draw(
@@ -356,15 +390,22 @@ final class HistogramGraphView: LayerDrawnView, NSViewToolTipOwner {
     override func mouseMoved(with event: NSEvent) {
         let location = convert(event.locationInWindow, from: nil)
         hoverRegion = location.y <= Self.graphHeight ? Region.at(location.x / max(bounds.width, 1)) : nil
+        previewClipping(at: location)
     }
 
     override func mouseExited(with _: NSEvent) {
         hoverRegion = nil
+        previewsClipping = false
+    }
+
+    private func previewClipping(at location: CGPoint) {
+        // The module not shown is left in place, transparent, and its tracking areas still hear the pointer.
+        previewsClipping = model.module == .develop && isOnIndicator(location)
     }
 
     override func mouseDown(with event: NSEvent) {
         let location = convert(event.locationInWindow, from: nil)
-        if indicatorFrame(trailing: false).contains(location) || indicatorFrame(trailing: true).contains(location) {
+        if isOnIndicator(location) {
             model.showClipping.toggle()
             return
         }
@@ -387,8 +428,10 @@ final class HistogramGraphView: LayerDrawnView, NSViewToolTipOwner {
         model.setValue(region.parameter, start.value + (x - start.x) / bounds.width * span * 0.6)
     }
 
-    override func mouseUp(with _: NSEvent) {
+    override func mouseUp(with event: NSEvent) {
         mouseDownX = nil
+        // A press's moves come as drags, unheard here: the pointer may have come onto a triangle or left it.
+        previewClipping(at: convert(event.locationInWindow, from: nil))
         guard dragRegion != nil else { return }
         dragRegion = nil
         dragStart = nil
