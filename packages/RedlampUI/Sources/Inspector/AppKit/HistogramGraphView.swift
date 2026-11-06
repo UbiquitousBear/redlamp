@@ -387,6 +387,11 @@ final class HistogramGraphView: LayerDrawnView, NSViewToolTipOwner {
         hoverArea = area
     }
 
+    override func mouseEntered(with event: NSEvent) {
+        // An entry during another control's drag comes at its mouse-up, with no move after it.
+        previewClipping(at: convert(event.locationInWindow, from: nil))
+    }
+
     override func mouseMoved(with event: NSEvent) {
         let location = convert(event.locationInWindow, from: nil)
         hoverRegion = location.y <= Self.graphHeight ? Region.at(location.x / max(bounds.width, 1)) : nil
@@ -400,7 +405,7 @@ final class HistogramGraphView: LayerDrawnView, NSViewToolTipOwner {
 
     private func previewClipping(at location: CGPoint) {
         // The module not shown is left in place, transparent, and its tracking areas still hear the pointer.
-        previewsClipping = model.module == .develop && isOnIndicator(location)
+        previewsClipping = hasPhoto && model.module == .develop && isOnIndicator(location)
     }
 
     override func mouseDown(with event: NSEvent) {

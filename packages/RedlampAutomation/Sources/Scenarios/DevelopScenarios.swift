@@ -772,7 +772,8 @@
             try app.focus()
             // Each clipping triangle previews the warning on the photo while the pointer is on it, without Show
             // Clipping, which a click on one still toggles. Their middles are 13 points in from the graph's sides and
-            // 10 down (`HistogramGraphView.indicatorFrame`).
+            // about 10 down (`HistogramGraphView.indicatorFrame`, whose row grows by a point to the caption's line
+            // height while a region is shown).
             let graph = try app.frame(of: .identifier("histogram"))
             let shadows = CGPoint(x: 13 / graph.width, y: 10 / graph.height)
             let highlights = CGPoint(x: 1 - shadows.x, y: shadows.y)
